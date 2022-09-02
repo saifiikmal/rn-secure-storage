@@ -15,6 +15,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.Calendar;
 
 import javax.crypto.Cipher;
@@ -23,9 +24,23 @@ import javax.crypto.CipherOutputStream;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.spec.IvParameterSpec;
 import javax.security.auth.x500.X500Principal;
 
 public class RNKeyStore {
+
+    private IvParameterSpec getIv(Context context) throws IOException {
+        byte[] iv;
+        if(Storage.exists(context, Constants.AES_IV_FILENAME)){
+            iv = Storage.readValues(context, Constants.AES_IV_FILENAME );
+        }
+        else {
+            iv = new byte[16];
+            new SecureRandom().nextBytes(iv);
+            Storage.writeValues(context, Constants.AES_IV_FILENAME, iv);
+        }
+        return new IvParameterSpec(iv);
+    }
 
     private PublicKey getOrCreatePublicKey(Context context, String alias) throws GeneralSecurityException, IOException {
         KeyStore keyStore = getKeyStore();
@@ -61,9 +76,9 @@ public class RNKeyStore {
         return encryptCipherText(cipher, plainTextBytes);
     }
 
-    private byte[] encryptAesPlainText(SecretKey secretKey, String plainText) throws GeneralSecurityException, IOException {
+    private byte[] encryptAesPlainText(SecretKey secretKey, IvParameterSpec iv, String plainText) throws GeneralSecurityException, IOException {
         Cipher cipher = Cipher.getInstance(Constants.AES_ALGORITHM);
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
         return encryptCipherText(cipher, plainText);
     }
 
@@ -100,7 +115,7 @@ public class RNKeyStore {
 
     public void setCipherText(Context context, String alias, String input) throws GeneralSecurityException, IOException {
         Storage.writeValues(context, Constants.SKS_DATA_FILENAME + alias,
-                encryptAesPlainText(getOrCreateSecretKey(context, alias), input));
+                encryptAesPlainText(getOrCreateSecretKey(context, alias), getIv(context), input));
     }
 
     private PrivateKey getPrivateKey(String alias) throws GeneralSecurityException, IOException {
@@ -115,9 +130,9 @@ public class RNKeyStore {
         return decryptCipherText(cipher, cipherTextBytes);
     }
 
-    private byte[] decryptAesCipherText(SecretKey secretKey, byte[] cipherTextBytes) throws GeneralSecurityException, IOException {
+    private byte[] decryptAesCipherText(SecretKey secretKey, IvParameterSpec iv, byte[] cipherTextBytes) throws GeneralSecurityException, IOException {
         Cipher cipher = Cipher.getInstance(Constants.AES_ALGORITHM);
-        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
         return decryptCipherText(cipher, cipherTextBytes);
     }
 
@@ -142,7 +157,7 @@ public class RNKeyStore {
     public String getPlainText(Context context, String alias) throws GeneralSecurityException, IOException {
         SecretKey secretKey = getSymmetricKey(context, alias);
         byte[] cipherTextBytes = Storage.readValues(context, Constants.SKS_DATA_FILENAME + alias);
-        return new String(decryptAesCipherText(secretKey, cipherTextBytes), "UTF-8");
+        return new String(decryptAesCipherText(secretKey, getIv(context), cipherTextBytes), "UTF-8");
     }
 
     public boolean exists(Context context, String alias) throws IOException {

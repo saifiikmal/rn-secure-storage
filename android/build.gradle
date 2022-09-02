@@ -20,7 +20,7 @@ apply plugin: 'com.android.library'
 android {
     compileSdkVersion 28
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 23
         targetSdkVersion 28
         versionCode 4
         versionName "2.0.7"
@@ -37,8 +37,8 @@ repositories {
 }
 
 dependencies {
-    implementation "com.scottyab:secure-preferences-lib:0.1.4"
     implementation "com.facebook.react:react-native:+"
+    implementation "androidx.security:security-crypto:1.0.0"
 }
 task copyDownloadableDepsToLibs(type: Copy) {
     from configurations.compile
